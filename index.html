@@ -13,6 +13,7 @@
     --muted: #718096;
     --accent: #4361ee;
 
+    --aea: #1e3a8a;
     --kea: #e53e3e;
     --rea: #38a169;
     --das: #805ad5;
@@ -96,6 +97,7 @@
   .chip:hover { border-color: var(--accent); color: var(--accent); }
   .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+  .chip[data-journal="aea"].active { background: var(--aea); border-color: var(--aea); }
   .chip[data-journal="kea"].active { background: var(--kea); border-color: var(--kea); }
   .chip[data-journal="rea"].active { background: var(--rea); border-color: var(--rea); }
   .chip[data-journal="das"].active { background: var(--das); border-color: var(--das); }
@@ -144,6 +146,7 @@
     color: #fff;
     white-space: nowrap;
   }
+  .badge-aea { background: var(--aea); }
   .badge-kea { background: var(--kea); }
   .badge-rea { background: var(--rea); }
   .badge-das { background: var(--das); }
@@ -271,6 +274,7 @@
   <div class="filter-group">
     <span class="filter-label">학회</span>
     <button class="chip active" data-journal="all">전체</button>
+    <button class="chip" data-journal="aea">AEA (미국경제학회)</button>
     <button class="chip" data-journal="kea">한국경제학회</button>
     <button class="chip" data-journal="rea">지역경제학회</button>
     <button class="chip" data-journal="das">자료분석학회</button>
@@ -297,9 +301,9 @@
 <div class="grid" id="grid"></div>
 
 <script>
-const BADGE = { kea:'badge-kea', rea:'badge-rea', das:'badge-das', qms:'badge-qms', roa:'badge-roa', tra:'badge-tra' };
+const BADGE = { aea:'badge-aea', kea:'badge-kea', rea:'badge-rea', das:'badge-das', qms:'badge-qms', roa:'badge-roa', tra:'badge-tra' };
 const BADGE_LABEL = {
-  kea:'한국경제학회', rea:'지역경제학회', das:'자료분석학회', qms:'품질경영학회',
+  aea:'AEA', kea:'한국경제학회', rea:'지역경제학회', das:'자료분석학회', qms:'품질경영학회',
   roa:'한국도로학회', tra:'한국교통학회'
 };
 

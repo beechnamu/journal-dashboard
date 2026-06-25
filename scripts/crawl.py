@@ -17,9 +17,20 @@ JOURNALS = [
     {"key": "tra", "name": "한국교통학회",    "sere_id": "000134"},
 ]
 
+# AEA 저널 목록 (aeaweb.org)
+AEA_JOURNALS = [
+    {"code": "aer",  "label": "American Economic Review"},
+    {"code": "jep",  "label": "Journal of Economic Perspectives"},
+    {"code": "app",  "label": "AEJ: Applied Economics"},
+    {"code": "pol",  "label": "AEJ: Economic Policy"},
+    {"code": "mac",  "label": "AEJ: Macroeconomics"},
+    {"code": "mic",  "label": "AEJ: Microeconomics"},
+]
+
 BASE_URL   = "https://www.kci.go.kr"
 LIST_URL   = BASE_URL + "/kciportal/po/search/poArtiSearList.kci?sereId={sere_id}&pageNo={page}"
 DETAIL_URL = BASE_URL + "/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId={arti_id}"
+AEA_BASE   = "https://www.aeaweb.org"
 
 YEARS_BACK = 2   # 최근 N년치 수집
 
@@ -158,6 +169,93 @@ async def fetch_abstracts(page, papers: list[dict]) -> list[dict]:
     return papers
 
 
+async def crawl_aea(page, target_years: list[int]) -> list[dict]:
+    """AEA 전체 저널에서 논문 수집 (aeaweb.org)"""
+    results = []
+
+    for jn in AEA_JOURNALS:
+        issues_url = f"{AEA_BASE}/journals/{jn['code']}/issues"
+        print(f"\n▶ AEA {jn['label']} 호 목록 수집...")
+        try:
+            await page.goto(issues_url, wait_until="networkidle", timeout=30000)
+        except Exception as e:
+            print(f"  [오류] {e}")
+            continue
+
+        # 각 호 링크 수집 (해당 연도만)
+        issue_links = []
+        anchors = await page.query_selector_all("a[href*='/issues/']")
+        for a in anchors:
+            href  = await a.get_attribute("href") or ""
+            text  = (await a.inner_text()).strip()
+            year_m = re.search(r"(20\d{2})", text)
+            if year_m and int(year_m.group(1)) in target_years:
+                full = href if href.startswith("http") else AEA_BASE + href
+                if full not in issue_links:
+                    issue_links.append(full)
+
+        print(f"  해당 연도 호: {len(issue_links)}개")
+
+        for issue_url in issue_links:
+            try:
+                await page.goto(issue_url, wait_until="networkidle", timeout=30000)
+                await asyncio.sleep(0.5)
+
+                # 논문 제목 링크
+                article_els = await page.query_selector_all("h3.title a, .journal-article-title a, h4 a[href*='articles']")
+                for el in article_els:
+                    title = (await el.inner_text()).strip()
+                    href  = await el.get_attribute("href") or ""
+                    if not title or not href:
+                        continue
+                    art_url = href if href.startswith("http") else AEA_BASE + href
+
+                    # doi/id 추출
+                    doi_m = re.search(r"id=(10\.\d+/.+)$", art_url)
+                    art_id = doi_m.group(1).replace("/", "_") if doi_m else re.sub(r"[^A-Za-z0-9]", "_", href[-30:])
+
+                    # 저자·연도
+                    parent = await el.evaluate_handle("el => el.closest('.journal-article, article, li')")
+                    authors = []
+                    year = target_years[0]
+                    try:
+                        author_els = await parent.as_element().query_selector_all(".authors a, .author")
+                        authors = [(await a.inner_text()).strip() for a in author_els]
+                        yr_el = await parent.as_element().query_selector(".journal-article-header time, time")
+                        if yr_el:
+                            yr_text = await yr_el.inner_text()
+                            yr_m = re.search(r"(20\d{2})", yr_text)
+                            if yr_m:
+                                year = int(yr_m.group(1))
+                    except Exception:
+                        pass
+
+                    results.append({
+                        "id":            f"AEA-{jn['code'].upper()}-{art_id[:30]}",
+                        "journal":       f"AEA - {jn['label']}",
+                        "journal_key":   "aea",
+                        "kci_id":        art_id,
+                        "title":         title,
+                        "authors":       authors,
+                        "year":          year,
+                        "volume":        "",
+                        "abstract":      "",
+                        "pdf_url":       "",
+                        "kci_url":       art_url,
+                        "category_main": "",
+                        "category_tags": [],
+                        "summary":       "",
+                        "key_question":  "",
+                    })
+            except Exception as e:
+                print(f"  [오류] {issue_url}: {e}")
+            await asyncio.sleep(0.5)
+
+        print(f"  소계: {len([r for r in results if r['journal_key']=='aea'])}건")
+
+    return results
+
+
 async def main():
     target_years = current_years()
     if "--year" in sys.argv:
@@ -173,12 +271,19 @@ async def main():
         await page.set_extra_http_headers({"Accept-Language": "ko-KR,ko;q=0.9"})
 
         all_papers = []
+
+        # KCI 학회 수집
         for journal in JOURNALS:
             papers = await crawl_journal(page, journal, target_years)
             all_papers.extend(papers)
 
-        # 초록 수집
+        # KCI 초록 수집
         all_papers = await fetch_abstracts(page, all_papers)
+
+        # AEA 수집 (aeaweb.org)
+        await page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
+        aea_papers = await crawl_aea(page, target_years)
+        all_papers.extend(aea_papers)
 
         await browser.close()
 
