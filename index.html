@@ -257,7 +257,7 @@
 
 <header>
   <div class="logo">학술 저널 대시보드 <span>한국경제·지역경제·자료분석·품질경영·도로·교통</span></div>
-  <div id="updated"></div>
+  <div id="updated" style="text-align:right;line-height:1.6"></div>
 </header>
 
 <div class="controls">
@@ -312,7 +312,7 @@ async function loadData() {
   const res  = await fetch('data/papers.json');
   const json = await res.json();
   allPapers  = json.papers;
-  document.getElementById('updated').textContent = '최종 업데이트: ' + json.updated;
+  document.getElementById('updated').innerHTML = '최종 업데이트: ' + json.updated + '<br><span style="font-size:.72rem;color:#a0aec0">카피라이터 밤나무</span>';
   render();
 }
 
