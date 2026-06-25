@@ -54,22 +54,33 @@ def call_gemini(title: str, abstract: str) -> dict | None:
             "responseMimeType": "application/json",
         },
     }
-    try:
-        res = requests.post(
-            GEMINI_URL,
-            params={"key": API_KEY},
-            json=payload,
-            timeout=30,
-        )
-        data = res.json()
-        if not res.ok:
-            print(f"  [API 오류] {data.get('error', {}).get('message', res.status_code)}")
+    for attempt in range(3):
+        try:
+            res = requests.post(
+                GEMINI_URL,
+                params={"key": API_KEY},
+                json=payload,
+                timeout=30,
+            )
+            data = res.json()
+            if res.status_code == 429:   # rate limit
+                wait = 65
+                import re
+                m = re.search(r"retry in (\d+)", data.get("error", {}).get("message", ""))
+                if m:
+                    wait = int(m.group(1)) + 5
+                print(f"  [한도 초과] {wait}초 대기 후 재시도...")
+                time.sleep(wait)
+                continue
+            if not res.ok:
+                print(f"  [API 오류] {data.get('error', {}).get('message', res.status_code)}")
+                return None
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            return json.loads(text)
+        except Exception as e:
+            print(f"  [오류] {e}")
             return None
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
-        return json.loads(text)
-    except Exception as e:
-        print(f"  [오류] {e}")
-        return None
+    return None
 
 
 def summarize_all():
@@ -100,7 +111,7 @@ def summarize_all():
             p["summary"]       = "(요약 실패)"
             p["key_question"]  = ""
 
-        time.sleep(1)   # API rate limit 방지
+        time.sleep(7)   # 분당 10건 한도 → 6초 이상 간격
 
     # 요약 결과 덮어쓰기
     raw_path.write_text(json.dumps(papers, ensure_ascii=False, indent=2), encoding="utf-8")
