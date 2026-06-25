@@ -104,7 +104,7 @@ def summarize_all():
             p["category_tags"] = result.get("category_tags", [])
             p["summary"]       = result.get("summary", "")
             p["key_question"]  = result.get("key_question", "")
-            print(f"  ✔ {p['category_main']} / {p['category_tags']}")
+            print(f"  OK {p['category_main']} / {p['category_tags']}")
         else:
             p["category_main"] = "기타"
             p["category_tags"] = []
