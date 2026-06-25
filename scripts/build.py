@@ -4,8 +4,18 @@ build.py  —  최종 papers.json 빌드 + GitHub 푸시
 사용법: python scripts/build.py
 윈도우 작업 스케줄러: 매월 마지막 금요일 12:00 실행
 """
-import os, json, subprocess, pathlib, sys
+import os, json, subprocess, pathlib, sys, calendar
 from datetime import date
+
+
+def is_last_friday_of_month(d: date = None) -> bool:
+    """오늘이 이달의 마지막 금요일(weekday=4)인지 확인"""
+    d = d or date.today()
+    if d.weekday() != 4:   # 금요일이 아니면 False
+        return False
+    # 7일 후가 같은 달이면 마지막 금요일이 아님
+    next_friday = d.replace(day=d.day + 7) if d.day + 7 <= calendar.monthrange(d.year, d.month)[1] else None
+    return next_friday is None
 
 BASE_DIR   = pathlib.Path(__file__).parent.parent
 RAW_PATH   = BASE_DIR / "data" / "raw_papers.json"
@@ -76,6 +86,11 @@ def git_push():
 
 
 if __name__ == "__main__":
+    # 스케줄러에서 매주 금요일 실행 — 마지막 금요일인지 확인
+    if "--force" not in sys.argv and not is_last_friday_of_month():
+        print(f"오늘({date.today().isoformat()})은 이달의 마지막 금요일이 아닙니다. 종료.")
+        sys.exit(0)
+
     print("=" * 50)
     print(f"학술 저널 대시보드 빌드 — {date.today().isoformat()}")
     print("=" * 50)
