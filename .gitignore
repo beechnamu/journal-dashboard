@@ -1,0 +1,4 @@
+.env
+data/raw_papers.json
+__pycache__/
+*.pyc

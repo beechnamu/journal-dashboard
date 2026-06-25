@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>학술 저널 대시보드</title>
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --border: #e2e8f0;
+    --text: #1a202c;
+    --muted: #718096;
+    --accent: #4361ee;
+
+    --kea: #e53e3e;
+    --rea: #38a169;
+    --das: #805ad5;
+    --qms: #dd6b20;
+
+    --tag-bg: #edf2f7;
+    --tag-text: #4a5568;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── 헤더 ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  }
+  .logo { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+  .logo span { font-weight: 300; color: var(--muted); font-size: 0.9rem; margin-left: .5rem; }
+  #updated { font-size: .78rem; color: var(--muted); }
+
+  /* ── 검색·필터 ── */
+  .controls {
+    max-width: 1280px;
+    margin: 1.5rem auto 0;
+    padding: 0 1.5rem;
+  }
+  .search-wrap {
+    position: relative;
+    margin-bottom: 1rem;
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: .9rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+  }
+  #search {
+    width: 100%;
+    padding: .65rem 1rem .65rem 2.5rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: .95rem;
+    background: var(--surface);
+    transition: border-color .2s;
+    outline: none;
+  }
+  #search:focus { border-color: var(--accent); }
+
+  .filter-group { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; }
+  .filter-label { font-size: .75rem; color: var(--muted); align-self: center; min-width: 3.5rem; }
+
+  .chip {
+    padding: .3rem .85rem;
+    border-radius: 999px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    font-size: .82rem;
+    cursor: pointer;
+    transition: all .15s;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .chip[data-journal="kea"].active { background: var(--kea); border-color: var(--kea); }
+  .chip[data-journal="rea"].active { background: var(--rea); border-color: var(--rea); }
+  .chip[data-journal="das"].active { background: var(--das); border-color: var(--das); }
+  .chip[data-journal="qms"].active { background: var(--qms); border-color: var(--qms); }
+
+  /* ── 결과 카운트 ── */
+  .result-bar {
+    max-width: 1280px;
+    margin: .75rem auto 0;
+    padding: 0 1.5rem;
+    font-size: .82rem;
+    color: var(--muted);
+  }
+
+  /* ── 카드 그리드 ── */
+  .grid {
+    max-width: 1280px;
+    margin: 1rem auto 3rem;
+    padding: 0 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    transition: box-shadow .2s, transform .15s;
+  }
+  .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); transform: translateY(-2px); }
+
+  /* 학회 뱃지 */
+  .card-header { display: flex; align-items: flex-start; gap: .5rem; flex-wrap: wrap; }
+  .badge {
+    font-size: .72rem;
+    font-weight: 700;
+    padding: .2rem .6rem;
+    border-radius: 4px;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .badge-kea { background: var(--kea); }
+  .badge-rea { background: var(--rea); }
+  .badge-das { background: var(--das); }
+  .badge-qms { background: var(--qms); }
+
+  .tag {
+    font-size: .72rem;
+    padding: .18rem .55rem;
+    border-radius: 4px;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    white-space: nowrap;
+  }
+
+  /* 제목·메타 */
+  .card-title {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.45;
+    color: var(--text);
+  }
+  .card-meta {
+    font-size: .78rem;
+    color: var(--muted);
+  }
+
+  /* 요약 */
+  .card-summary {
+    font-size: .86rem;
+    line-height: 1.7;
+    color: #2d3748;
+  }
+
+  /* 메모 */
+  .memo-label {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+  }
+  .memo-box {
+    width: 100%;
+    min-height: 70px;
+    padding: .55rem .7rem;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    font-size: .83rem;
+    font-family: inherit;
+    resize: vertical;
+    background: #fafafa;
+    color: var(--text);
+    transition: border-color .2s;
+    outline: none;
+  }
+  .memo-box:focus { border-color: var(--accent); background: #fff; }
+  .memo-saved { font-size: .7rem; color: #38a169; opacity: 0; transition: opacity .4s; }
+  .memo-saved.show { opacity: 1; }
+
+  /* 주요 질문 */
+  .key-question {
+    background: #fffbeb;
+    border-left: 3px solid #f6c90e;
+    border-radius: 0 6px 6px 0;
+    padding: .55rem .75rem;
+    font-size: .83rem;
+    line-height: 1.6;
+    color: #744210;
+  }
+  .key-question-label {
+    font-size: .7rem;
+    font-weight: 700;
+    color: #b7791f;
+    margin-bottom: .25rem;
+  }
+
+  /* 원문 링크 */
+  .card-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .8rem;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    margin-top: auto;
+  }
+  .card-link:hover { text-decoration: underline; }
+
+  /* 빈 결과 */
+  .empty {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 4rem 0;
+    color: var(--muted);
+    font-size: .95rem;
+  }
+
+  /* ── 반응형 ── */
+  @media (max-width: 600px) {
+    header { padding: 1rem; }
+    .controls, .result-bar, .grid { padding: 0 1rem; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">학술 저널 대시보드 <span>한국경제·지역경제·자료분석·품질경영</span></div>
+  <div id="updated"></div>
+</header>
+
+<div class="controls">
+  <div class="search-wrap">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <input id="search" type="text" placeholder="제목, 저자, 키워드 검색...">
+  </div>
+
+  <div class="filter-group">
+    <span class="filter-label">학회</span>
+    <button class="chip active" data-journal="all">전체</button>
+    <button class="chip" data-journal="kea">한국경제학회</button>
+    <button class="chip" data-journal="rea">지역경제학회</button>
+    <button class="chip" data-journal="das">자료분석학회</button>
+    <button class="chip" data-journal="qms">품질경영학회</button>
+  </div>
+
+  <div class="filter-group">
+    <span class="filter-label">주제</span>
+    <button class="chip active" data-topic="all">전체</button>
+    <button class="chip" data-topic="거시경제·미시경제">거시·미시경제</button>
+    <button class="chip" data-topic="노동·고용">노동·고용</button>
+    <button class="chip" data-topic="지역개발·도시">지역개발·도시</button>
+    <button class="chip" data-topic="계량·통계·데이터분석">계량·통계·데이터</button>
+    <button class="chip" data-topic="품질경영·생산성">품질경영·생산성</button>
+    <button class="chip" data-topic="산업·무역">산업·무역</button>
+    <button class="chip" data-topic="기타">기타</button>
+  </div>
+</div>
+
+<div class="result-bar"><span id="count"></span></div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const BADGE = { kea:'badge-kea', rea:'badge-rea', das:'badge-das', qms:'badge-qms' };
+const BADGE_LABEL = {
+  kea:'한국경제학회', rea:'지역경제학회', das:'자료분석학회', qms:'품질경영학회'
+};
+
+let allPapers = [];
+let filterJournal = 'all';
+let filterTopic   = 'all';
+let searchQuery   = '';
+
+async function loadData() {
+  const res  = await fetch('data/papers.json');
+  const json = await res.json();
+  allPapers  = json.papers;
+  document.getElementById('updated').textContent = '최종 업데이트: ' + json.updated;
+  render();
+}
+
+function memoKey(id) { return 'memo_' + id; }
+
+function saveMemo(id, text, indicator) {
+  localStorage.setItem(memoKey(id), text);
+  indicator.classList.add('show');
+  setTimeout(() => indicator.classList.remove('show'), 1400);
+}
+
+function makeCard(p) {
+  const saved = localStorage.getItem(memoKey(p.id)) || '';
+  const tags  = p.category_tags.map(t => `<span class="tag">${t}</span>`).join('');
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="badge ${BADGE[p.journal_key]}">${BADGE_LABEL[p.journal_key]}</span>
+      <span class="tag">${p.category_main}</span>
+      ${tags}
+    </div>
+    <div class="card-title">${p.title}</div>
+    <div class="card-meta">${p.authors.join(', ')} · ${p.year} · ${p.volume}</div>
+    <div class="card-summary">${p.summary}</div>
+
+    <div>
+      <div class="memo-label">
+        📝 메모
+        <span class="memo-saved" id="saved_${p.id}">저장됨</span>
+      </div>
+      <textarea class="memo-box" id="memo_${p.id}" placeholder="이 논문에 대한 생각을 적어보세요...">${saved}</textarea>
+    </div>
+
+    <div class="key-question">
+      <div class="key-question-label">💬 생각해볼 질문</div>
+      ${p.key_question}
+    </div>
+
+    <a class="card-link" href="${p.kci_url}" target="_blank" rel="noopener">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+        <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+      </svg>
+      KCI 원문 보기
+    </a>
+  `;
+
+  const textarea  = card.querySelector(`#memo_${p.id}`);
+  const indicator = card.querySelector(`#saved_${p.id}`);
+  let timer;
+  textarea.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => saveMemo(p.id, textarea.value, indicator), 800);
+  });
+
+  return card;
+}
+
+function render() {
+  const q    = searchQuery.toLowerCase();
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+
+  const filtered = allPapers.filter(p => {
+    if (filterJournal !== 'all' && p.journal_key !== filterJournal) return false;
+    if (filterTopic   !== 'all' && p.category_main !== filterTopic) return false;
+    if (q && ![p.title, ...p.authors, ...p.category_tags, p.summary]
+              .join(' ').toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  document.getElementById('count').textContent =
+    `${filtered.length}개 논문 표시 중 (전체 ${allPapers.length}개)`;
+
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>';
+    return;
+  }
+
+  filtered.forEach(p => grid.appendChild(makeCard(p)));
+}
+
+/* 필터 이벤트 */
+document.querySelectorAll('.chip[data-journal]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.chip[data-journal]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filterJournal = btn.dataset.journal;
+    render();
+  });
+});
+
+document.querySelectorAll('.chip[data-topic]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.chip[data-topic]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filterTopic = btn.dataset.topic;
+    render();
+  });
+});
+
+document.getElementById('search').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  render();
+});
+
+loadData();
+</script>
+</body>
+</html>
