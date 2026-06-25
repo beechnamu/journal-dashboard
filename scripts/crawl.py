@@ -1,105 +1,147 @@
 # -*- coding: utf-8 -*-
 """
-crawl.py  —  KCI에서 4개 학회 최신 논문 목록 수집
+crawl.py  —  KCI OAI-PMH로 4개 학회 최신 논문 목록 수집
+의존: pip install sickle
 사용법: python scripts/crawl.py
 """
-import os, time, json, pathlib, requests
-from datetime import datetime
+import json, time, pathlib
+from datetime import date, timedelta
+from sickle import Sickle
+from sickle.oaiexceptions import NoRecordsMatch
 
 BASE_DIR = pathlib.Path(__file__).parent.parent
 
-# ── KCI 학회 설정 ──────────────────────────────────────────────────────────
-# journal_cd: KCI 저널 코드 (crawl 후 실제 코드로 교체 필요)
+OAI_ENDPOINT = "https://open.kci.go.kr/oai/request"
+
+# sereId: KCI 학술지 식별 코드
 JOURNALS = [
-    {"key": "kea", "name": "한국경제학회",  "journal_cd": "J000550"},
-    {"key": "rea", "name": "지역경제학회",  "journal_cd": "J000000"},  # 확인 필요
-    {"key": "das", "name": "자료분석학회",  "journal_cd": "J000000"},  # 확인 필요
-    {"key": "qms", "name": "품질경영학회",  "journal_cd": "J000460"},
+    {"key": "kea", "name": "한국경제학회",   "sere_id": "000214"},
+    {"key": "rea", "name": "한국지역경제학회", "sere_id": "SER000010170"},
+    {"key": "das", "name": "한국자료분석학회", "sere_id": "000930"},
+    {"key": "qms", "name": "한국품질경영학회", "sere_id": "000306"},
 ]
 
-KCI_API   = "https://www.kci.go.kr/kciportal/po/openapi/openApiJournal.kci"
-KCI_ART   = "https://www.kci.go.kr/kciportal/po/openapi/openApiArticle.kci"
-HEADERS   = {"User-Agent": "Mozilla/5.0 (compatible; JournalBot/1.0)"}
-MAX_PAGES = 3   # 학회당 최대 페이지 수 (페이지당 10건)
+DELAY = 0.5   # 요청 간 지연(초) — 서버 부하 방지
 
 
-def fetch_articles(journal_cd: str, page: int = 1) -> list[dict]:
-    """KCI OpenAPI로 논문 목록 조회"""
+def parse_record(record, journal: dict) -> dict | None:
+    """OAI-PMH 레코드 → 논문 딕셔너리"""
+    try:
+        meta = record.metadata
+        arti_id = record.header.identifier.split(":")[-1]
+
+        title = (meta.get("title") or [""])[0].strip()
+        if not title:
+            return None
+
+        authors_raw = meta.get("creator") or []
+        authors = [a.strip() for a in authors_raw if a.strip()]
+
+        year_raw = (meta.get("date") or ["0"])[0]
+        year = int(year_raw[:4]) if year_raw else 0
+
+        abstract = (meta.get("description") or [""])[0].strip()
+        volume   = (meta.get("source") or [""])[0].strip()
+
+        return {
+            "id":            f"{journal['key'].upper()}-{arti_id}",
+            "journal":       journal["name"],
+            "journal_key":   journal["key"],
+            "kci_id":        arti_id,
+            "title":         title,
+            "authors":       authors,
+            "year":          year,
+            "volume":        volume,
+            "abstract":      abstract,
+            "pdf_url":       "",
+            "kci_url":       f"https://www.kci.go.kr/kciportal/landing/article.kci?arti_id={arti_id}",
+            # summarize.py가 채울 필드
+            "category_main": "",
+            "category_tags": [],
+            "summary":       "",
+            "key_question":  "",
+        }
+    except Exception as e:
+        print(f"  [파싱 오류] {e}")
+        return None
+
+
+def crawl_journal(sickle: Sickle, journal: dict, from_date: str | None = None) -> list[dict]:
+    """학회 1개 수집"""
     params = {
-        "journalCd": journal_cd,
-        "pageNum":   page,
-        "pageSize":  10,
-        "openYn":    "Y",   # 오픈 액세스만
+        "metadataPrefix": "oai_kci",
+        "set":            journal["sere_id"],
     }
-    try:
-        res = requests.get(KCI_ART, params=params, headers=HEADERS, timeout=15)
-        res.raise_for_status()
-        data = res.json()
-        return data.get("article", [])
-    except Exception as e:
-        print(f"  [오류] {journal_cd} p{page}: {e}")
-        return []
+    if from_date:
+        params["from"] = from_date
 
+    print(f"\n▶ {journal['name']} (sereId={journal['sere_id']}) 수집 중...")
 
-def fetch_article_detail(arti_id: str) -> dict:
-    """논문 상세 정보(초록 등) 조회"""
-    params = {"artiId": arti_id}
-    try:
-        res = requests.get(KCI_ART, params=params, headers=HEADERS, timeout=15)
-        res.raise_for_status()
-        return res.json()
-    except Exception as e:
-        print(f"  [오류] 상세 {arti_id}: {e}")
-        return {}
-
-
-def crawl_all() -> list[dict]:
-    """전체 학회 크롤링"""
     results = []
-
-    for j in JOURNALS:
-        print(f"\n▶ {j['name']} ({j['journal_cd']}) 크롤링 중...")
-        for page in range(1, MAX_PAGES + 1):
-            articles = fetch_articles(j["journal_cd"], page)
-            if not articles:
-                break
-
-            for art in articles:
-                arti_id = art.get("artiId", "")
-                item = {
-                    "id":           f"{j['key'].upper()}-{arti_id}",
-                    "journal":      j["name"],
-                    "journal_key":  j["key"],
-                    "kci_id":       arti_id,
-                    "title":        art.get("artiNm", "").strip(),
-                    "authors":      [a.strip() for a in art.get("authNm", "").split(",") if a.strip()],
-                    "year":         int(art.get("pubYear", 0) or 0),
-                    "volume":       art.get("volNum", ""),
-                    "abstract":     art.get("abstractKo", "") or art.get("abstractEn", ""),
-                    "pdf_url":      art.get("pdfUrl", ""),
-                    "kci_url":      f"https://www.kci.go.kr/kciportal/landing/article.kci?arti_id={arti_id}",
-                    # summarize.py가 채울 필드
-                    "category_main": "",
-                    "category_tags": [],
-                    "summary":       "",
-                    "key_question":  "",
-                }
+    try:
+        records = sickle.ListRecords(**params)
+        for record in records:
+            item = parse_record(record, journal)
+            if item:
                 results.append(item)
-                print(f"  └ {item['title'][:40]}...")
+                print(f"  └ [{item['year']}] {item['title'][:45]}...")
+            time.sleep(DELAY)
+    except NoRecordsMatch:
+        print(f"  (신규 논문 없음)")
+    except Exception as e:
+        print(f"  [오류] {e}")
 
-            time.sleep(0.5)   # KCI 서버 부하 방지
-
-    print(f"\n총 {len(results)}건 수집 완료")
     return results
 
 
+def crawl_all(incremental: bool = False) -> list[dict]:
+    """전체 학회 수집
+    incremental=True: 지난달 이후 논문만 수집 (월별 업데이트용)
+    """
+    from_date = None
+    if incremental:
+        # 지난달 1일부터 수집
+        today = date.today()
+        first_of_last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+        from_date = first_of_last_month.isoformat()
+        print(f"증분 수집 모드: {from_date} 이후")
+
+    sickle = Sickle(OAI_ENDPOINT)
+    all_papers = []
+
+    for j in JOURNALS:
+        papers = crawl_journal(sickle, j, from_date)
+        all_papers.extend(papers)
+
+    print(f"\n총 {len(all_papers)}건 수집 완료")
+    return all_papers
+
+
+def merge_with_existing(new_papers: list[dict]) -> list[dict]:
+    """기존 raw_papers.json과 병합 (중복 제거)"""
+    raw_path = BASE_DIR / "data" / "raw_papers.json"
+
+    existing = []
+    if raw_path.exists():
+        existing = json.loads(raw_path.read_text(encoding="utf-8"))
+
+    existing_ids = {p["id"] for p in existing}
+    added = [p for p in new_papers if p["id"] not in existing_ids]
+
+    merged = existing + added
+    print(f"기존 {len(existing)}건 + 신규 {len(added)}건 = {len(merged)}건")
+    return merged
+
+
 def save_raw(papers: list[dict]):
-    """크롤링 원본 저장 (summarize.py 입력용)"""
     out = BASE_DIR / "data" / "raw_papers.json"
     out.write_text(json.dumps(papers, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"원본 저장: {out}")
+    print(f"저장: {out}")
 
 
 if __name__ == "__main__":
-    papers = crawl_all()
-    save_raw(papers)
+    # 첫 실행: incremental=False (전체)
+    # 월별 업데이트: incremental=True
+    papers = crawl_all(incremental=False)
+    merged = merge_with_existing(papers)
+    save_raw(merged)
