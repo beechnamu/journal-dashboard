@@ -19,6 +19,8 @@ JOURNALS = [
     {"key": "rea", "name": "한국지역경제학회", "sere_id": "SER000010170"},
     {"key": "das", "name": "한국자료분석학회", "sere_id": "000930"},
     {"key": "qms", "name": "한국품질경영학회", "sere_id": "000306"},
+    {"key": "roa", "name": "한국도로학회",    "sere_id": "001414"},
+    {"key": "tra", "name": "한국교통학회",    "sere_id": "000134"},
 ]
 
 DELAY = 0.5   # 요청 간 지연(초) — 서버 부하 방지

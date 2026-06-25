@@ -17,6 +17,8 @@
     --rea: #38a169;
     --das: #805ad5;
     --qms: #dd6b20;
+    --roa: #2b6cb0;
+    --tra: #b7791f;
 
     --tag-bg: #edf2f7;
     --tag-text: #4a5568;
@@ -98,6 +100,8 @@
   .chip[data-journal="rea"].active { background: var(--rea); border-color: var(--rea); }
   .chip[data-journal="das"].active { background: var(--das); border-color: var(--das); }
   .chip[data-journal="qms"].active { background: var(--qms); border-color: var(--qms); }
+  .chip[data-journal="roa"].active { background: var(--roa); border-color: var(--roa); }
+  .chip[data-journal="tra"].active { background: var(--tra); border-color: var(--tra); }
 
   /* ── 결과 카운트 ── */
   .result-bar {
@@ -144,6 +148,8 @@
   .badge-rea { background: var(--rea); }
   .badge-das { background: var(--das); }
   .badge-qms { background: var(--qms); }
+  .badge-roa { background: var(--roa); }
+  .badge-tra { background: var(--tra); }
 
   .tag {
     font-size: .72rem;
@@ -250,7 +256,7 @@
 <body>
 
 <header>
-  <div class="logo">학술 저널 대시보드 <span>한국경제·지역경제·자료분석·품질경영</span></div>
+  <div class="logo">학술 저널 대시보드 <span>한국경제·지역경제·자료분석·품질경영·도로·교통</span></div>
   <div id="updated"></div>
 </header>
 
@@ -269,6 +275,8 @@
     <button class="chip" data-journal="rea">지역경제학회</button>
     <button class="chip" data-journal="das">자료분석학회</button>
     <button class="chip" data-journal="qms">품질경영학회</button>
+    <button class="chip" data-journal="roa">한국도로학회</button>
+    <button class="chip" data-journal="tra">한국교통학회</button>
   </div>
 
   <div class="filter-group">
@@ -289,9 +297,10 @@
 <div class="grid" id="grid"></div>
 
 <script>
-const BADGE = { kea:'badge-kea', rea:'badge-rea', das:'badge-das', qms:'badge-qms' };
+const BADGE = { kea:'badge-kea', rea:'badge-rea', das:'badge-das', qms:'badge-qms', roa:'badge-roa', tra:'badge-tra' };
 const BADGE_LABEL = {
-  kea:'한국경제학회', rea:'지역경제학회', das:'자료분석학회', qms:'품질경영학회'
+  kea:'한국경제학회', rea:'지역경제학회', das:'자료분석학회', qms:'품질경영학회',
+  roa:'한국도로학회', tra:'한국교통학회'
 };
 
 let allPapers = [];
